@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import type { HandLandmarkerResult } from "@mediapipe/tasks-vision";
 import type { WorkerRequest, WorkerResponse } from "@/lib/mediapipe/worker-protocol";
-import type { ModelStatus } from "@/types";
+import type { ModelStatus, RecognizedSign } from "@/types";
 
 type UseHandLandmarkerOptions = {
   videoRef: React.RefObject<HTMLVideoElement | null>;
@@ -14,6 +14,7 @@ type UseHandLandmarkerResult = {
   status: ModelStatus;
   error: string | null;
   result: HandLandmarkerResult | null;
+  recognizedSigns: RecognizedSign[];
   fps: number | null;
   latencyMs: number | null;
 };
@@ -30,6 +31,7 @@ export function useHandLandmarker({
   const [status, setStatus] = useState<ModelStatus>("idle");
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<HandLandmarkerResult | null>(null);
+  const [recognizedSigns, setRecognizedSigns] = useState<RecognizedSign[]>([]);
   const [fps, setFps] = useState<number | null>(null);
   const [latencyMs, setLatencyMs] = useState<number | null>(null);
 
@@ -81,6 +83,7 @@ export function useHandLandmarker({
         busyRef.current = false;
         setStatus("running");
         setResult(msg.result);
+        setRecognizedSigns(msg.recognizedSigns);
         setLatencyMs(Math.round(msg.inferenceMs));
 
         const now = performance.now();
@@ -138,5 +141,5 @@ export function useHandLandmarker({
     };
   }, [enabled, status, videoRef, postToWorker]);
 
-  return { status, error, result, fps, latencyMs };
+  return { status, error, result, recognizedSigns, fps, latencyMs };
 }

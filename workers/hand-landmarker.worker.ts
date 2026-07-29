@@ -4,6 +4,7 @@ import {
   FilesetResolver,
   HandLandmarker,
 } from "@mediapipe/tasks-vision";
+import type { HandLandmarkerResult } from "@mediapipe/tasks-vision";
 import {
   HAND_LANDMARKER_MODEL_URL,
   MAX_NUM_HANDS,
@@ -11,10 +12,13 @@ import {
 } from "@/lib/mediapipe/config";
 import { fetchModelBuffer } from "@/lib/mediapipe/fetch-model";
 import type { WorkerRequest, WorkerResponse } from "@/lib/mediapipe/worker-protocol";
+import { createDefaultModel } from "@/lib/ai/model-registry";
+import type { FrameLandmarks, GestureRecognitionModel, RecognizedSign } from "@/types";
 
 const ctx = self as unknown as DedicatedWorkerGlobalScope;
 
 let landmarker: HandLandmarker | null = null;
+let gestureModel: GestureRecognitionModel | null = null;
 let initPromise: Promise<void> | null = null;
 
 function post(message: WorkerResponse, transfer: Transferable[] = []) {
@@ -49,6 +53,36 @@ async function initialize(): Promise<void> {
     // Fall back to the CPU delegate rather than surfacing an error.
     landmarker = await createLandmarker(vision, modelAssetBuffer, "CPU");
   }
+
+  gestureModel = createDefaultModel();
+  await gestureModel.load();
+}
+
+async function classifyHands(
+  result: HandLandmarkerResult,
+  timestampMs: number
+): Promise<RecognizedSign[]> {
+  if (!gestureModel) return [];
+
+  const signs: RecognizedSign[] = [];
+  for (let i = 0; i < result.landmarks.length; i++) {
+    const handedness = result.handedness[i]?.[0]?.categoryName;
+    const frame: FrameLandmarks = {
+      timestampMs,
+      leftHand: handedness === "Left" ? result.landmarks[i] : null,
+      rightHand: handedness === "Right" ? result.landmarks[i] : null,
+      pose: null,
+      face: null,
+    };
+
+    try {
+      const prediction = await gestureModel.predict(frame);
+      if (prediction) signs.push(prediction);
+    } catch {
+      // A single bad frame shouldn't take down the whole pipeline.
+    }
+  }
+  return signs;
 }
 
 ctx.onmessage = async (event: MessageEvent<WorkerRequest>) => {
@@ -82,8 +116,9 @@ ctx.onmessage = async (event: MessageEvent<WorkerRequest>) => {
     try {
       const start = performance.now();
       const result = landmarker.detectForVideo(bitmap, timestampMs);
+      const recognizedSigns = await classifyHands(result, timestampMs);
       const inferenceMs = performance.now() - start;
-      post({ type: "result", result, timestampMs, inferenceMs });
+      post({ type: "result", result, recognizedSigns, timestampMs, inferenceMs });
     } catch (err) {
       post({
         type: "error",

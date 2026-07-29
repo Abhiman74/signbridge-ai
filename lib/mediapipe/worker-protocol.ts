@@ -1,4 +1,5 @@
 import type { HandLandmarkerResult } from "@mediapipe/tasks-vision";
+import type { RecognizedSign } from "@/types";
 
 export type WorkerRequest =
   | { type: "init" }
@@ -10,6 +11,7 @@ export type WorkerResponse =
   | {
       type: "result";
       result: HandLandmarkerResult;
+      recognizedSigns: RecognizedSign[];
       timestampMs: number;
       inferenceMs: number;
     };
