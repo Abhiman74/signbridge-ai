@@ -1,13 +1,15 @@
 import { AlertCircle, Loader2, ScanEye } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ModelPendingBadge } from "@/components/translator/model-pending-badge";
-import type { ModelStatus } from "@/types";
+import type { ModelStatus, RecognizedSign } from "@/types";
 
 type Props = {
   trackingStatus: ModelStatus;
   trackingError: string | null;
   handedness: string[];
+  recognizedSigns: RecognizedSign[];
+  pendingLabel: string | null;
+  pendingProgress: number;
 };
 
 function TrackingBadge({ status }: { status: ModelStatus }) {
@@ -38,7 +40,18 @@ function TrackingBadge({ status }: { status: ModelStatus }) {
   return <Badge variant="outline">Idle</Badge>;
 }
 
-export function StatusPanel({ trackingStatus, trackingError, handedness }: Props) {
+export function StatusPanel({
+  trackingStatus,
+  trackingError,
+  handedness,
+  recognizedSigns,
+  pendingLabel,
+  pendingProgress,
+}: Props) {
+  const best = recognizedSigns.length
+    ? recognizedSigns.reduce((a, b) => (b.confidence > a.confidence ? b : a))
+    : null;
+
   return (
     <Card>
       <CardHeader className="flex-row items-center justify-between space-y-0">
@@ -61,22 +74,31 @@ export function StatusPanel({ trackingStatus, trackingError, handedness }: Props
         )}
 
         <div className="mt-6 flex items-center justify-between border-t border-border-subtle pt-4">
-          <span className="text-sm text-foreground/60">Detected sign</span>
-          <ModelPendingBadge />
+          <span className="text-sm text-foreground/60">Detected letter</span>
+          <Badge variant={best ? "brand" : "outline"}>
+            {best ? "ASL fingerspelling" : "No match"}
+          </Badge>
         </div>
-        <p className="mt-1 text-lg font-semibold text-foreground/30">—</p>
+        <p className="mt-1 text-4xl font-bold tracking-tight">
+          {best?.label ?? pendingLabel ?? "—"}
+        </p>
 
         <div className="mt-3 flex items-center justify-between text-sm text-foreground/50">
           <span>Confidence</span>
-          <span>—</span>
+          <span>{best ? `${Math.round(best.confidence * 100)}%` : "—"}</span>
         </div>
         <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-surface-muted">
-          <div className="h-full w-0 rounded-full brand-gradient-bg" />
+          <div
+            className="h-full rounded-full brand-gradient-bg transition-all"
+            style={{
+              width: `${Math.round((best ? best.confidence : pendingProgress) * 100)}%`,
+            }}
+          />
         </div>
         <p className="mt-4 text-xs leading-relaxed text-foreground/40">
-          21-point hand landmarks are now tracked live, on-device (Milestone
-          2). Classifying those landmarks into signs ships in Milestone 3 —
-          this panel will never show a simulated prediction before then.
+          Heuristic classifier (fingerpose) over live landmarks — supports
+          A, B, C, D, E, F, I, L, O, U, V, W, Y. Hold a shape steady to
+          commit a letter; not a trained neural network yet.
         </p>
       </CardContent>
     </Card>

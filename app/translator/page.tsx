@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useCamera } from "@/hooks/use-camera";
 import { useHandLandmarker } from "@/hooks/use-hand-landmarker";
+import { useFingerspellingBuffer } from "@/hooks/use-fingerspelling-buffer";
 import { CameraFeed } from "@/components/translator/camera-feed";
 import { HandOverlay } from "@/components/translator/hand-overlay";
 import { StatusPanel } from "@/components/translator/status-panel";
@@ -27,9 +28,28 @@ export default function TranslatorPage() {
     status: trackingStatus,
     error: trackingError,
     result: handResult,
+    recognizedSigns,
     fps: inferenceFps,
     latencyMs,
   } = useHandLandmarker({ videoRef, enabled: isStreaming && !paused });
+
+  const {
+    currentWord,
+    committedText,
+    fullText,
+    pendingLabel,
+    pendingProgress,
+    update: updateBuffer,
+    clear: clearBuffer,
+  } = useFingerspellingBuffer();
+
+  useEffect(() => {
+    if (!isStreaming || paused) return;
+    updateBuffer(recognizedSigns, performance.now());
+    // recognizedSigns is a fresh array reference every processed frame,
+    // which is exactly the cadence we want to drive the buffer at.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recognizedSigns, isStreaming, paused]);
 
   const handedness = useMemo(() => {
     if (!handResult) return [];
@@ -93,8 +113,16 @@ export default function TranslatorPage() {
             trackingStatus={trackingStatus}
             trackingError={trackingError}
             handedness={handedness}
+            recognizedSigns={recognizedSigns}
+            pendingLabel={pendingLabel}
+            pendingProgress={pendingProgress}
           />
-          <SentencePanel />
+          <SentencePanel
+            currentWord={currentWord}
+            committedText={committedText}
+            fullText={fullText}
+            onClear={clearBuffer}
+          />
         </div>
       </div>
     </div>
