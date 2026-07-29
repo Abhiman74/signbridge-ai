@@ -2,9 +2,17 @@ type Props = {
   resolution: { width: number; height: number } | null;
   frameRate: number | null;
   isStreaming: boolean;
+  inferenceFps: number | null;
+  latencyMs: number | null;
 };
 
-export function MetricsBar({ resolution, frameRate, isStreaming }: Props) {
+export function MetricsBar({
+  resolution,
+  frameRate,
+  isStreaming,
+  inferenceFps,
+  latencyMs,
+}: Props) {
   const metrics = [
     {
       label: "Camera resolution",
@@ -14,8 +22,16 @@ export function MetricsBar({ resolution, frameRate, isStreaming }: Props) {
       label: "Camera FPS",
       value: isStreaming && frameRate ? `${frameRate}` : "—",
     },
-    { label: "Inference FPS", value: "—", pending: true },
-    { label: "Latency", value: "—", pending: true },
+    {
+      label: "Inference FPS",
+      value: inferenceFps !== null ? `${inferenceFps}` : "—",
+      pending: inferenceFps === null,
+    },
+    {
+      label: "Latency",
+      value: latencyMs !== null ? `${latencyMs} ms` : "—",
+      pending: latencyMs === null,
+    },
   ];
 
   return (
@@ -32,7 +48,6 @@ export function MetricsBar({ resolution, frameRate, isStreaming }: Props) {
             }`}
           >
             {metric.value}
-            {metric.label === "Latency" && metric.value !== "—" ? " ms" : ""}
           </p>
         </div>
       ))}

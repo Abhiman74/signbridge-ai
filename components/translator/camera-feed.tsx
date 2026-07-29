@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type RefObject } from "react";
+import { useState, type ReactNode, type RefObject } from "react";
 import { Maximize2, Minimize2, Pause, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PermissionGate } from "@/components/translator/permission-gate";
@@ -15,6 +15,7 @@ type Props = {
   onRequestAccess: () => void;
   paused: boolean;
   onTogglePause: () => void;
+  overlay?: ReactNode;
 };
 
 export function CameraFeed({
@@ -26,6 +27,7 @@ export function CameraFeed({
   onRequestAccess,
   paused,
   onTogglePause,
+  overlay,
 }: Props) {
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -53,6 +55,8 @@ export function CameraFeed({
         muted
         aria-label="Live camera preview"
       />
+
+      {isStreaming && overlay}
 
       {!isStreaming && (
         <PermissionGate
