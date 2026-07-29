@@ -1,0 +1,52 @@
+import { GestureEstimator } from "fingerpose";
+import { ASL_FINGERSPELLING_GESTURES } from "./gestures/asl-fingerspelling";
+import type { FrameLandmarks, GestureRecognitionModel, RecognizedSign } from "@/types";
+
+/**
+ * Minimum fingerpose match score (0-10) required to accept a prediction.
+ * Lower = more permissive (more false positives), higher = stricter (more
+ * missed detections). Tuned empirically; exposed here so it's easy to
+ * adjust without hunting through the codebase.
+ */
+export const ASL_MIN_MATCH_SCORE = 6.5;
+
+/**
+ * Wraps the `fingerpose` heuristic classifier behind the
+ * `GestureRecognitionModel` interface so the rest of the app (worker,
+ * hooks, UI) never has to know whether a classification came from a
+ * hand-authored heuristic or, eventually, a trained model.
+ */
+export class AslFingerspellingModel implements GestureRecognitionModel {
+  readonly id = "asl-fingerspelling-heuristic-v1";
+  readonly label = "ASL Fingerspelling (heuristic)";
+
+  #estimator: GestureEstimator | null = null;
+
+  async load(): Promise<void> {
+    this.#estimator = new GestureEstimator(ASL_FINGERSPELLING_GESTURES);
+  }
+
+  async predict(frame: FrameLandmarks): Promise<RecognizedSign | null> {
+    if (!this.#estimator) {
+      throw new Error("AslFingerspellingModel.load() must be called first");
+    }
+
+    const hand = frame.rightHand ?? frame.leftHand;
+    if (!hand || hand.length < 21) return null;
+
+    const { gestures } = this.#estimator.estimate(hand, ASL_MIN_MATCH_SCORE);
+    if (gestures.length === 0) return null;
+
+    const best = gestures.reduce((a, b) => (b.score > a.score ? b : a));
+
+    return {
+      label: best.name,
+      confidence: Math.min(1, Math.max(0, best.score / 10)),
+      timestampMs: frame.timestampMs,
+    };
+  }
+
+  dispose(): void {
+    this.#estimator = null;
+  }
+}
