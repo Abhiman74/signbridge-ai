@@ -5,9 +5,16 @@
  * fingerpose does NOT use a trained neural network — it estimates, per
  * finger, a discrete curl (no/half/full) and pointing direction from the
  * real hand landmarks, then scores that against hand-authored reference
- * descriptions. That means predictions are always computed live from the
- * actual detected hand shape; nothing here is a hardcoded or simulated
- * output.
+ * descriptions. Predictions are always computed live from the actual
+ * detected hand shape; nothing here is a hardcoded or simulated output.
+ *
+ * Calibration note (v2): every letter below uses the SAME weighting
+ * scheme — a primary curl/direction match worth 1.0, and at most one
+ * adjacent fallback state worth 0.5. The first version of this file gave
+ * some letters (notably A) more generous, asymmetric fallback credit
+ * than others, which made them win by default regardless of the actual
+ * hand shape. Keeping the weighting symmetric across all letters is
+ * what actually fixes that, not just retuning A in isolation.
  *
  * IMPORTANT — honest scope: curl + direction alone cannot distinguish
  * every ASL letter. Several letters (M, N, T, S, R, K, P, Q, X, G, H)
@@ -26,125 +33,133 @@
 
 import { Finger, FingerCurl, FingerDirection, GestureDescription } from "fingerpose";
 
+const PRIMARY = 1.0;
+const FALLBACK = 0.5;
+
 function letter(name: string): GestureDescription {
   return new GestureDescription(name);
 }
 
+function curled(gesture: GestureDescription, fingers: number[]) {
+  for (const f of fingers) {
+    gesture.addCurl(f, FingerCurl.FullCurl, PRIMARY);
+    gesture.addCurl(f, FingerCurl.HalfCurl, FALLBACK);
+  }
+}
+
+function extendedUp(gesture: GestureDescription, fingers: number[]) {
+  for (const f of fingers) {
+    gesture.addCurl(f, FingerCurl.NoCurl, PRIMARY);
+    gesture.addCurl(f, FingerCurl.HalfCurl, FALLBACK);
+    gesture.addDirection(f, FingerDirection.VerticalUp, PRIMARY);
+    gesture.addDirection(f, FingerDirection.DiagonalUpLeft, FALLBACK);
+    gesture.addDirection(f, FingerDirection.DiagonalUpRight, FALLBACK);
+  }
+}
+
+// A — fist, thumb resting alongside (not crossed over) the fingers.
 const asl_A = letter("A");
-asl_A.addCurl(Finger.Thumb, FingerCurl.NoCurl, 1.0);
-asl_A.addCurl(Finger.Thumb, FingerCurl.HalfCurl, 0.7);
-for (const f of [Finger.Index, Finger.Middle, Finger.Ring, Finger.Pinky]) {
-  asl_A.addCurl(f, FingerCurl.FullCurl, 1.0);
-  asl_A.addCurl(f, FingerCurl.HalfCurl, 0.4);
-}
+asl_A.addCurl(Finger.Thumb, FingerCurl.NoCurl, PRIMARY);
+asl_A.addCurl(Finger.Thumb, FingerCurl.HalfCurl, FALLBACK);
+curled(asl_A, [Finger.Index, Finger.Middle, Finger.Ring, Finger.Pinky]);
 
+// B — flat hand, four fingers up together, thumb folded across the palm.
 const asl_B = letter("B");
-asl_B.addCurl(Finger.Thumb, FingerCurl.FullCurl, 1.0);
-asl_B.addCurl(Finger.Thumb, FingerCurl.HalfCurl, 0.6);
-for (const f of [Finger.Index, Finger.Middle, Finger.Ring, Finger.Pinky]) {
-  asl_B.addCurl(f, FingerCurl.NoCurl, 1.0);
-  asl_B.addDirection(f, FingerDirection.VerticalUp, 1.0);
-  asl_B.addDirection(f, FingerDirection.DiagonalUpLeft, 0.7);
-  asl_B.addDirection(f, FingerDirection.DiagonalUpRight, 0.7);
-}
+asl_B.addCurl(Finger.Thumb, FingerCurl.FullCurl, PRIMARY);
+asl_B.addCurl(Finger.Thumb, FingerCurl.HalfCurl, FALLBACK);
+extendedUp(asl_B, [Finger.Index, Finger.Middle, Finger.Ring, Finger.Pinky]);
 
+// C — curved hand forming a C. All fingers (incl. thumb) half-curled.
 const asl_C = letter("C");
 for (const f of [Finger.Thumb, Finger.Index, Finger.Middle, Finger.Ring, Finger.Pinky]) {
-  asl_C.addCurl(f, FingerCurl.HalfCurl, 1.0);
-  asl_C.addCurl(f, FingerCurl.NoCurl, 0.4);
+  asl_C.addCurl(f, FingerCurl.HalfCurl, PRIMARY);
+  asl_C.addCurl(f, FingerCurl.NoCurl, FALLBACK);
 }
 
+// D — index up, thumb touches middle finger, others curled.
 const asl_D = letter("D");
-asl_D.addCurl(Finger.Index, FingerCurl.NoCurl, 1.0);
-asl_D.addDirection(Finger.Index, FingerDirection.VerticalUp, 1.0);
-asl_D.addDirection(Finger.Index, FingerDirection.DiagonalUpLeft, 0.7);
-asl_D.addDirection(Finger.Index, FingerDirection.DiagonalUpRight, 0.7);
-asl_D.addCurl(Finger.Thumb, FingerCurl.HalfCurl, 1.0);
-for (const f of [Finger.Middle, Finger.Ring, Finger.Pinky]) {
-  asl_D.addCurl(f, FingerCurl.FullCurl, 1.0);
-}
+extendedUp(asl_D, [Finger.Index]);
+asl_D.addCurl(Finger.Thumb, FingerCurl.HalfCurl, PRIMARY);
+asl_D.addCurl(Finger.Thumb, FingerCurl.NoCurl, FALLBACK);
+curled(asl_D, [Finger.Middle, Finger.Ring, Finger.Pinky]);
 
+// E — fingers curled at the big knuckle, thumb across the fingertips.
 const asl_E = letter("E");
 for (const f of [Finger.Index, Finger.Middle, Finger.Ring, Finger.Pinky]) {
-  asl_E.addCurl(f, FingerCurl.FullCurl, 1.0);
-  asl_E.addCurl(f, FingerCurl.HalfCurl, 0.7);
+  asl_E.addCurl(f, FingerCurl.HalfCurl, PRIMARY);
+  asl_E.addCurl(f, FingerCurl.FullCurl, FALLBACK);
 }
-asl_E.addCurl(Finger.Thumb, FingerCurl.HalfCurl, 1.0);
+asl_E.addCurl(Finger.Thumb, FingerCurl.HalfCurl, PRIMARY);
+asl_E.addCurl(Finger.Thumb, FingerCurl.FullCurl, FALLBACK);
 
+// F — thumb + index touching (circle), other three fingers up.
 const asl_F = letter("F");
-asl_F.addCurl(Finger.Index, FingerCurl.HalfCurl, 1.0);
-asl_F.addCurl(Finger.Thumb, FingerCurl.HalfCurl, 1.0);
-for (const f of [Finger.Middle, Finger.Ring, Finger.Pinky]) {
-  asl_F.addCurl(f, FingerCurl.NoCurl, 1.0);
-  asl_F.addDirection(f, FingerDirection.VerticalUp, 1.0);
-}
+asl_F.addCurl(Finger.Index, FingerCurl.HalfCurl, PRIMARY);
+asl_F.addCurl(Finger.Index, FingerCurl.FullCurl, FALLBACK);
+asl_F.addCurl(Finger.Thumb, FingerCurl.HalfCurl, PRIMARY);
+asl_F.addCurl(Finger.Thumb, FingerCurl.FullCurl, FALLBACK);
+extendedUp(asl_F, [Finger.Middle, Finger.Ring, Finger.Pinky]);
 
+// I — pinky up, others curled (thumb tucked like a fist).
 const asl_I = letter("I");
-asl_I.addCurl(Finger.Pinky, FingerCurl.NoCurl, 1.0);
-asl_I.addDirection(Finger.Pinky, FingerDirection.VerticalUp, 1.0);
-for (const f of [Finger.Index, Finger.Middle, Finger.Ring]) {
-  asl_I.addCurl(f, FingerCurl.FullCurl, 1.0);
-}
-asl_I.addCurl(Finger.Thumb, FingerCurl.HalfCurl, 1.0);
-asl_I.addCurl(Finger.Thumb, FingerCurl.FullCurl, 0.6);
+extendedUp(asl_I, [Finger.Pinky]);
+curled(asl_I, [Finger.Index, Finger.Middle, Finger.Ring, Finger.Thumb]);
 
+// L — thumb + index form an L, others curled.
 const asl_L = letter("L");
-asl_L.addCurl(Finger.Index, FingerCurl.NoCurl, 1.0);
-asl_L.addDirection(Finger.Index, FingerDirection.VerticalUp, 1.0);
-asl_L.addCurl(Finger.Thumb, FingerCurl.NoCurl, 1.0);
-asl_L.addDirection(Finger.Thumb, FingerDirection.HorizontalLeft, 1.0);
-asl_L.addDirection(Finger.Thumb, FingerDirection.HorizontalRight, 1.0);
-for (const f of [Finger.Middle, Finger.Ring, Finger.Pinky]) {
-  asl_L.addCurl(f, FingerCurl.FullCurl, 1.0);
-}
+asl_L.addCurl(Finger.Index, FingerCurl.NoCurl, PRIMARY);
+asl_L.addCurl(Finger.Index, FingerCurl.HalfCurl, FALLBACK);
+asl_L.addDirection(Finger.Index, FingerDirection.VerticalUp, PRIMARY);
+asl_L.addCurl(Finger.Thumb, FingerCurl.NoCurl, PRIMARY);
+asl_L.addCurl(Finger.Thumb, FingerCurl.HalfCurl, FALLBACK);
+asl_L.addDirection(Finger.Thumb, FingerDirection.HorizontalLeft, PRIMARY);
+asl_L.addDirection(Finger.Thumb, FingerDirection.HorizontalRight, PRIMARY);
+curled(asl_L, [Finger.Middle, Finger.Ring, Finger.Pinky]);
 
+// O — fingertips curved in to meet the thumb, forming a circle/O.
 const asl_O = letter("O");
 for (const f of [Finger.Thumb, Finger.Index, Finger.Middle, Finger.Ring, Finger.Pinky]) {
-  asl_O.addCurl(f, FingerCurl.HalfCurl, 1.0);
-  asl_O.addCurl(f, FingerCurl.FullCurl, 0.5);
+  asl_O.addCurl(f, FingerCurl.HalfCurl, PRIMARY);
+  asl_O.addCurl(f, FingerCurl.FullCurl, FALLBACK);
 }
 
+// U — index + middle up together, others curled.
 const asl_U = letter("U");
-for (const f of [Finger.Index, Finger.Middle]) {
-  asl_U.addCurl(f, FingerCurl.NoCurl, 1.0);
-  asl_U.addDirection(f, FingerDirection.VerticalUp, 1.0);
-}
-for (const f of [Finger.Ring, Finger.Pinky]) {
-  asl_U.addCurl(f, FingerCurl.FullCurl, 1.0);
-}
-asl_U.addCurl(Finger.Thumb, FingerCurl.FullCurl, 0.6);
-asl_U.addCurl(Finger.Thumb, FingerCurl.HalfCurl, 1.0);
+extendedUp(asl_U, [Finger.Index, Finger.Middle]);
+curled(asl_U, [Finger.Ring, Finger.Pinky, Finger.Thumb]);
 
+// V — index + middle up, spread apart, others curled.
 const asl_V = letter("V");
-asl_V.addCurl(Finger.Index, FingerCurl.NoCurl, 1.0);
-asl_V.addDirection(Finger.Index, FingerDirection.DiagonalUpLeft, 1.0);
-asl_V.addDirection(Finger.Index, FingerDirection.VerticalUp, 0.7);
-asl_V.addCurl(Finger.Middle, FingerCurl.NoCurl, 1.0);
-asl_V.addDirection(Finger.Middle, FingerDirection.DiagonalUpRight, 1.0);
-asl_V.addDirection(Finger.Middle, FingerDirection.VerticalUp, 0.7);
-for (const f of [Finger.Ring, Finger.Pinky]) {
-  asl_V.addCurl(f, FingerCurl.FullCurl, 1.0);
-}
-asl_V.addCurl(Finger.Thumb, FingerCurl.FullCurl, 0.6);
-asl_V.addCurl(Finger.Thumb, FingerCurl.HalfCurl, 1.0);
+asl_V.addCurl(Finger.Index, FingerCurl.NoCurl, PRIMARY);
+asl_V.addCurl(Finger.Index, FingerCurl.HalfCurl, FALLBACK);
+asl_V.addDirection(Finger.Index, FingerDirection.DiagonalUpLeft, PRIMARY);
+asl_V.addCurl(Finger.Middle, FingerCurl.NoCurl, PRIMARY);
+asl_V.addCurl(Finger.Middle, FingerCurl.HalfCurl, FALLBACK);
+asl_V.addDirection(Finger.Middle, FingerDirection.DiagonalUpRight, PRIMARY);
+curled(asl_V, [Finger.Ring, Finger.Pinky, Finger.Thumb]);
 
+// W — index + middle + ring up, spread; pinky + thumb curled.
 const asl_W = letter("W");
-for (const f of [Finger.Index, Finger.Middle, Finger.Ring]) {
-  asl_W.addCurl(f, FingerCurl.NoCurl, 1.0);
-  asl_W.addDirection(f, FingerDirection.VerticalUp, 1.0);
-  asl_W.addDirection(f, FingerDirection.DiagonalUpLeft, 0.6);
-  asl_W.addDirection(f, FingerDirection.DiagonalUpRight, 0.6);
-}
-asl_W.addCurl(Finger.Pinky, FingerCurl.FullCurl, 1.0);
-asl_W.addCurl(Finger.Thumb, FingerCurl.FullCurl, 0.6);
-asl_W.addCurl(Finger.Thumb, FingerCurl.HalfCurl, 1.0);
+asl_W.addCurl(Finger.Index, FingerCurl.NoCurl, PRIMARY);
+asl_W.addCurl(Finger.Index, FingerCurl.HalfCurl, FALLBACK);
+asl_W.addDirection(Finger.Index, FingerDirection.DiagonalUpLeft, PRIMARY);
+asl_W.addDirection(Finger.Index, FingerDirection.VerticalUp, FALLBACK);
+asl_W.addCurl(Finger.Middle, FingerCurl.NoCurl, PRIMARY);
+asl_W.addCurl(Finger.Middle, FingerCurl.HalfCurl, FALLBACK);
+asl_W.addDirection(Finger.Middle, FingerDirection.VerticalUp, PRIMARY);
+asl_W.addCurl(Finger.Ring, FingerCurl.NoCurl, PRIMARY);
+asl_W.addCurl(Finger.Ring, FingerCurl.HalfCurl, FALLBACK);
+asl_W.addDirection(Finger.Ring, FingerDirection.DiagonalUpRight, PRIMARY);
+asl_W.addDirection(Finger.Ring, FingerDirection.VerticalUp, FALLBACK);
+curled(asl_W, [Finger.Pinky, Finger.Thumb]);
 
+// Y — thumb + pinky extended out ("hang loose"), others curled.
 const asl_Y = letter("Y");
-asl_Y.addCurl(Finger.Thumb, FingerCurl.NoCurl, 1.0);
-asl_Y.addCurl(Finger.Pinky, FingerCurl.NoCurl, 1.0);
-for (const f of [Finger.Index, Finger.Middle, Finger.Ring]) {
-  asl_Y.addCurl(f, FingerCurl.FullCurl, 1.0);
-}
+asl_Y.addCurl(Finger.Thumb, FingerCurl.NoCurl, PRIMARY);
+asl_Y.addCurl(Finger.Thumb, FingerCurl.HalfCurl, FALLBACK);
+asl_Y.addCurl(Finger.Pinky, FingerCurl.NoCurl, PRIMARY);
+asl_Y.addCurl(Finger.Pinky, FingerCurl.HalfCurl, FALLBACK);
+curled(asl_Y, [Finger.Index, Finger.Middle, Finger.Ring]);
 
 export const ASL_FINGERSPELLING_GESTURES: GestureDescription[] = [
   asl_A,
