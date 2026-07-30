@@ -23,6 +23,22 @@ export const ASL_MIN_MATCH_SCORE = 7.5;
  */
 export const ASL_MIN_SCORE_MARGIN = 0.75;
 
+/**
+ * fingerpose's default curl thresholds (NO_CURL_START_LIMIT: 130,
+ * HALF_CURL_START_LIMIT: 60, measured in degrees of bend at the
+ * knuckle) assume a nearly-perfectly-straight finger to count as
+ * "No Curl". Real hands rarely extend a finger that straight, and the
+ * library's own README calls out exactly this as a known limitation.
+ * Loosened here so a naturally slightly-bent extended finger still
+ * reads as "No Curl" instead of "Half Curl" — which matters a lot,
+ * since every letter except A requires at least one finger to read as
+ * cleanly extended.
+ */
+const ESTIMATOR_OPTIONS = {
+  NO_CURL_START_LIMIT: 105.0,
+  HALF_CURL_START_LIMIT: 50.0,
+};
+
 export type AslDebugInfo = {
   poseData: Array<[name: string, curl: string, direction: string]>;
   scores: Array<{ label: string; score: number }>;
@@ -41,7 +57,7 @@ export class AslFingerspellingModel implements GestureRecognitionModel {
   #estimator: GestureEstimator | null = null;
 
   async load(): Promise<void> {
-    this.#estimator = new GestureEstimator(ASL_FINGERSPELLING_GESTURES);
+    this.#estimator = new GestureEstimator(ASL_FINGERSPELLING_GESTURES, ESTIMATOR_OPTIONS);
   }
 
   async predict(frame: FrameLandmarks): Promise<RecognizedSign | null> {

@@ -18,7 +18,10 @@ type Props = {
  * guessing blind.
  */
 export function DebugPanel({ debug }: Props) {
-  const [open, setOpen] = useState(false);
+  // Open by default while the classifier is still being calibrated — the
+  // point of this panel is to see real numbers without hunting for a
+  // toggle first.
+  const [open, setOpen] = useState(true);
 
   if (debug.length === 0) return null;
 
