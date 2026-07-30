@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import type { HandLandmarkerResult } from "@mediapipe/tasks-vision";
 import type { WorkerRequest, WorkerResponse } from "@/lib/mediapipe/worker-protocol";
 import type { ModelStatus, RecognizedSign } from "@/types";
+import type { AslDebugInfo } from "@/lib/ai/asl-fingerspelling-model";
 
 type UseHandLandmarkerOptions = {
   videoRef: React.RefObject<HTMLVideoElement | null>;
@@ -15,6 +16,7 @@ type UseHandLandmarkerResult = {
   error: string | null;
   result: HandLandmarkerResult | null;
   recognizedSigns: RecognizedSign[];
+  debug: AslDebugInfo[];
   fps: number | null;
   latencyMs: number | null;
 };
@@ -32,6 +34,7 @@ export function useHandLandmarker({
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<HandLandmarkerResult | null>(null);
   const [recognizedSigns, setRecognizedSigns] = useState<RecognizedSign[]>([]);
+  const [debug, setDebug] = useState<AslDebugInfo[]>([]);
   const [fps, setFps] = useState<number | null>(null);
   const [latencyMs, setLatencyMs] = useState<number | null>(null);
 
@@ -84,6 +87,7 @@ export function useHandLandmarker({
         setStatus("running");
         setResult(msg.result);
         setRecognizedSigns(msg.recognizedSigns);
+        setDebug(msg.debug);
         setLatencyMs(Math.round(msg.inferenceMs));
 
         const now = performance.now();
@@ -141,5 +145,5 @@ export function useHandLandmarker({
     };
   }, [enabled, status, videoRef, postToWorker]);
 
-  return { status, error, result, recognizedSigns, fps, latencyMs };
+  return { status, error, result, recognizedSigns, debug, fps, latencyMs };
 }

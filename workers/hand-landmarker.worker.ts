@@ -13,6 +13,7 @@ import {
 import { fetchModelBuffer } from "@/lib/mediapipe/fetch-model";
 import type { WorkerRequest, WorkerResponse } from "@/lib/mediapipe/worker-protocol";
 import { createDefaultModel } from "@/lib/ai/model-registry";
+import type { AslDebugInfo } from "@/lib/ai/asl-fingerspelling-model";
 import type { FrameLandmarks, GestureRecognitionModel, RecognizedSign } from "@/types";
 
 const ctx = self as unknown as DedicatedWorkerGlobalScope;
@@ -58,13 +59,23 @@ async function initialize(): Promise<void> {
   await gestureModel.load();
 }
 
+function hasDebugEstimate(
+  model: GestureRecognitionModel
+): model is GestureRecognitionModel & {
+  debugEstimate: (hand: FrameLandmarks["leftHand"]) => AslDebugInfo | null;
+} {
+  return typeof (model as { debugEstimate?: unknown }).debugEstimate === "function";
+}
+
 async function classifyHands(
   result: HandLandmarkerResult,
   timestampMs: number
-): Promise<RecognizedSign[]> {
-  if (!gestureModel) return [];
+): Promise<{ signs: RecognizedSign[]; debug: AslDebugInfo[] }> {
+  if (!gestureModel) return { signs: [], debug: [] };
 
   const signs: RecognizedSign[] = [];
+  const debug: AslDebugInfo[] = [];
+
   for (let i = 0; i < result.landmarks.length; i++) {
     const handedness = result.handedness[i]?.[0]?.categoryName;
     const frame: FrameLandmarks = {
@@ -81,8 +92,13 @@ async function classifyHands(
     } catch {
       // A single bad frame shouldn't take down the whole pipeline.
     }
+
+    if (hasDebugEstimate(gestureModel)) {
+      const info = gestureModel.debugEstimate(result.landmarks[i]);
+      if (info) debug.push(info);
+    }
   }
-  return signs;
+  return { signs, debug };
 }
 
 ctx.onmessage = async (event: MessageEvent<WorkerRequest>) => {
@@ -116,9 +132,9 @@ ctx.onmessage = async (event: MessageEvent<WorkerRequest>) => {
     try {
       const start = performance.now();
       const result = landmarker.detectForVideo(bitmap, timestampMs);
-      const recognizedSigns = await classifyHands(result, timestampMs);
+      const { signs: recognizedSigns, debug } = await classifyHands(result, timestampMs);
       const inferenceMs = performance.now() - start;
-      post({ type: "result", result, recognizedSigns, timestampMs, inferenceMs });
+      post({ type: "result", result, recognizedSigns, debug, timestampMs, inferenceMs });
     } catch (err) {
       post({
         type: "error",

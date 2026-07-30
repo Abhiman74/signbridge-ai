@@ -1,6 +1,6 @@
 import { GestureEstimator } from "fingerpose";
 import { ASL_FINGERSPELLING_GESTURES } from "./gestures/asl-fingerspelling";
-import type { FrameLandmarks, GestureRecognitionModel, RecognizedSign } from "@/types";
+import type { FrameLandmarks, GestureRecognitionModel, HandLandmarks, RecognizedSign } from "@/types";
 
 /**
  * Minimum fingerpose match score (0-10) required to accept a prediction.
@@ -9,6 +9,11 @@ import type { FrameLandmarks, GestureRecognitionModel, RecognizedSign } from "@/
  * adjust without hunting through the codebase.
  */
 export const ASL_MIN_MATCH_SCORE = 6.5;
+
+export type AslDebugInfo = {
+  poseData: Array<[name: string, curl: string, direction: string]>;
+  scores: Array<{ label: string; score: number }>;
+};
 
 /**
  * Wraps the `fingerpose` heuristic classifier behind the
@@ -44,6 +49,25 @@ export class AslFingerspellingModel implements GestureRecognitionModel {
       confidence: Math.min(1, Math.max(0, best.score / 10)),
       timestampMs: frame.timestampMs,
     };
+  }
+
+  /**
+   * Diagnostic-only: returns the raw per-finger curl/direction estimate
+   * plus EVERY candidate letter's score (not just the accepted best
+   * match, and not filtered by ASL_MIN_MATCH_SCORE). Not part of the
+   * GestureRecognitionModel contract — this exists purely so the app can
+   * surface real numbers for calibrating the heuristic against actual
+   * hands, since it can't be tuned meaningfully without that feedback.
+   */
+  debugEstimate(hand: HandLandmarks): AslDebugInfo | null {
+    if (!this.#estimator || !hand || hand.length < 21) return null;
+
+    const { poseData, gestures } = this.#estimator.estimate(hand, -1000);
+    const scores = gestures
+      .map((g) => ({ label: g.name, score: Math.round(g.score * 100) / 100 }))
+      .sort((a, b) => b.score - a.score);
+
+    return { poseData, scores };
   }
 
   dispose(): void {

@@ -9,6 +9,7 @@ import { HandOverlay } from "@/components/translator/hand-overlay";
 import { StatusPanel } from "@/components/translator/status-panel";
 import { SentencePanel } from "@/components/translator/sentence-panel";
 import { MetricsBar } from "@/components/translator/metrics-bar";
+import { DebugPanel } from "@/components/translator/debug-panel";
 
 export default function TranslatorPage() {
   const {
@@ -29,6 +30,7 @@ export default function TranslatorPage() {
     error: trackingError,
     result: handResult,
     recognizedSigns,
+    debug,
     fps: inferenceFps,
     latencyMs,
   } = useHandLandmarker({ videoRef, enabled: isStreaming && !paused });
@@ -123,6 +125,7 @@ export default function TranslatorPage() {
             fullText={fullText}
             onClear={clearBuffer}
           />
+          <DebugPanel debug={debug} />
         </div>
       </div>
     </div>
