@@ -8,7 +8,20 @@ import type { FrameLandmarks, GestureRecognitionModel, HandLandmarks, Recognized
  * missed detections). Tuned empirically; exposed here so it's easy to
  * adjust without hunting through the codebase.
  */
-export const ASL_MIN_MATCH_SCORE = 6.5;
+export const ASL_MIN_MATCH_SCORE = 7.5;
+
+/**
+ * Minimum score gap required between the top match and the runner-up
+ * before a prediction is accepted. Several letters (A, C, E, O, Y) use
+ * curl-only descriptions with no direction constraint, which makes them
+ * prone to near-identical scores for ambiguous/half-formed hand shapes.
+ * Without this margin, JS Array#reduce breaks exact or near ties by
+ * picking whichever gesture appears first in ASL_FINGERSPELLING_GESTURES
+ * — which is "A" — regardless of what was actually signed. Requiring a
+ * real gap means an ambiguous shape reports "no match" instead of
+ * silently defaulting to A.
+ */
+export const ASL_MIN_SCORE_MARGIN = 0.75;
 
 export type AslDebugInfo = {
   poseData: Array<[name: string, curl: string, direction: string]>;
@@ -42,7 +55,14 @@ export class AslFingerspellingModel implements GestureRecognitionModel {
     const { gestures } = this.#estimator.estimate(hand, ASL_MIN_MATCH_SCORE);
     if (gestures.length === 0) return null;
 
-    const best = gestures.reduce((a, b) => (b.score > a.score ? b : a));
+    const sorted = [...gestures].sort((a, b) => b.score - a.score);
+    const best = sorted[0];
+    const runnerUp = sorted[1];
+
+    // Reject ambiguous calls instead of arbitrarily picking a winner.
+    if (runnerUp && best.score - runnerUp.score < ASL_MIN_SCORE_MARGIN) {
+      return null;
+    }
 
     return {
       label: best.name,
